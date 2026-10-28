@@ -1,0 +1,33 @@
+{
+  "name": "bhramari-enterprises",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "node scripts/dev-platform.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "build:site": "next build",
+    "preview": "node scripts/preview-platform.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:db": "node supabase/tests/run-local.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "1.62.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.12",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2"
+  },
+  "type": "module"
+}

@@ -1,0 +1,14 @@
+'use client';
+import Link from 'next/link';
+import Image from 'next/image';
+import {ArrowUpRight,Flower2,BookOpen,Sprout,Network,Compass,Package} from 'lucide-react';
+import {businesses,site} from '@/lib/content';
+import {FooterContact} from './platform-public';
+const icons={Flower2,BookOpen,Sprout,Network,Compass,Package};
+/** The supplied JPG is unchanged; CSS trims only its white margins. */
+export function BrandMark({priority=false}:{priority?:boolean}){return <span className='brand-mark'><span className='logo-window'><Image src={site.logo.src} alt={site.logo.alt} width={1536} height={1024} className='brand-source' loading={priority?'eager':'lazy'} fetchPriority={priority?'high':undefined}/></span><span className='enterprise-label'>ENTERPRISES</span></span>}
+export function Logo(){return <Link href='/' className='brand' aria-label='Bhramari Enterprises home'><BrandMark priority/></Link>}
+export function BusinessCard({business,index}:{business:typeof businesses[number];index:number}){const Icon=icons[business.icon];return <Link href={'/businesses/'+business.slug+'/'} className={'business-card'+(business.slug==='yoga-wellness'?' yoga-business-card':'')}><div className='card-top'><Icon size={28} strokeWidth={1.2}/><span>{String(index+1).padStart(2,'0')}</span></div><h3>{business.name}</h3><p>{business.description}</p><span className='explore'>{business.cta}<ArrowUpRight size={18}/></span></Link>}
+export function Breadcrumb({current,business=false}:{current:string;business?:boolean}){return <nav aria-label='Breadcrumb' className='breadcrumb'><Link href='/'>Home</Link><span>/</span>{business&&<><Link href='/#businesses'>Our businesses</Link><span>/</span></>}<span aria-current='page'>{current}</span></nav>}
+export function CTA({title='Let’s explore what we can build together.',text='We welcome conversations with individuals, organisations and potential collaborators who share an interest in wellness, learning, livelihoods and sustainable growth.'}:{title?:string;text?:string}){return <section className='cta wrap'><div><span className='eyebrow'>THE NEXT CONVERSATION</span><h2>{title}</h2><p>{text}</p></div><Link className='button' href='/contact/'>Start a conversation<ArrowUpRight size={18}/></Link></section>}
+export function Footer(){return <footer><div className='wrap footer-grid'><div><Logo/><p>One brand. Multiple capabilities.<br/>A thoughtful approach to long-term growth.</p><FooterContact/></div><div><h3>Our businesses</h3>{businesses.map(b=><Link key={b.slug} href={'/businesses/'+b.slug+'/'}>{b.name}</Link>)}</div><div><h3>Explore</h3><Link href='/about/'>About us</Link><Link href='/partnerships/'>Partnerships</Link><Link href='/contact/'>Contact</Link><Link href='/privacy/'>Privacy policy</Link></div></div><div className='wrap footer-bottom'><span>© {new Date().getFullYear()} Bhramari Enterprises. All rights reserved.</span><span>Built with purpose. Designed to evolve.</span></div></footer>}

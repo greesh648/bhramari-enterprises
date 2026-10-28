@@ -116,4 +116,3 @@ Use the current verified review origin while configuring Auth. When the final do
 Use only the hosting provider's supplied DNS records (commonly CNAME for www and A/AAAA/ALIAS for apex). Preserve existing mail records. Enable managed HTTPS, verify certificate renewal and redirect HTTP to HTTPS with one primary hostname. No DNS records were changed by this work.
 
 The privacy notice describes account, enquiry, cookie and third-party handling, but controller/contact, processor locations, retention and applicable rights require owner review before real collection. No legal compliance certification is claimed. Complete official contact, instructor and programme details, and test real enquiry persistence and actual email/SMS delivery before public launch. Payments remain inactive.
-

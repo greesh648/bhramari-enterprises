@@ -1,0 +1,1 @@
+import {site} from '@/lib/content';export const dynamic='force-static';export default function robots(){return {rules:{userAgent:'*',allow:'/',disallow:['/account/','/admin/','/api/','/login/','/create-account/','/reset-password/']},...(site.url?{sitemap:new URL('/sitemap.xml',site.url).href}:{})}}

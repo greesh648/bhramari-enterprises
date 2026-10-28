@@ -1,0 +1,44 @@
+'use client';
+import Link from 'next/link';
+import {useEffect,useState} from 'react';
+import type {PlatformConfig} from '@/lib/platform-types';
+import {platformApi,jsonBody,safeReturnTo} from '@/lib/platform-api';
+
+export function ConfigurationNotice(){return <div className='platform-notice' role='status'><strong>Requires backend configuration</strong><p>Secure account access is not connected yet. No account, verification code or enquiry has been created. The owner must configure the authentication and database service before these features can be used.</p></div>}
+
+export function PlatformAuth({mode}:{mode:'login'|'register'|'reset'}){
+ const [config,setConfig]=useState<PlatformConfig|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);const [method,setMethod]=useState<'email'|'phone'>('email');const [otpSent,setOtpSent]=useState(false);const [phone,setPhone]=useState('');const [recover,setRecover]=useState(false);const [returnTo,setReturnTo]=useState('/account/');
+ async function load(){setLoading(true);setError('');try{setConfig(await platformApi<PlatformConfig>('/api/config'))}catch(e){setError((e as Error).message)}finally{setLoading(false)}}
+ useEffect(()=>{const query=new URLSearchParams(window.location.search);setReturnTo(safeReturnTo(query.get('returnTo')||query.get('next')));void load()},[]);
+ const ready=Boolean(config?.configured);const phoneReady=Boolean(ready&&config?.phoneOtpEnabled);
+ async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();const form=event.currentTarget;if(!form.reportValidity()||!ready)return;const data=Object.fromEntries(new FormData(form));setError('');setMessage('');setBusy(true);try{
+  if(mode==='reset'){if(data.password!==data.confirm_password)throw new Error('The passwords do not match.');await platformApi('/api/auth/reset-password',{method:'POST',body:jsonBody({password:data.password})});setMessage('Your password was updated by the authentication service. You can continue to your account.');form.reset();return}
+  if(mode==='register'){if(data.password!==data.confirm_password)throw new Error('The passwords do not match.');const result=await platformApi<{verificationRequired:boolean}>('/api/auth/register',{method:'POST',body:jsonBody({full_name:String(data.full_name||'').trim(),email:String(data.email||'').trim(),phone:String(data.phone||'').trim(),password:data.password,privacy:data.privacy==='on',whatsapp_opt_in:data.whatsapp_opt_in==='on'})});form.reset();setMessage(result.verificationRequired?'Your account request was accepted. Check your email for the verification link before signing in.':'Your account was created by the authentication service. You can now access My Bhramari.');return}
+  if(recover){await platformApi('/api/auth/recover',{method:'POST',body:jsonBody({email:String(data.email||'').trim()})});setMessage('If this email can receive account recovery messages, the authentication service will send the next steps.');return}
+  if(method==='phone'){if(!phoneReady)throw new Error('Mobile OTP requires a configured SMS provider.');if(!otpSent){await platformApi('/api/auth/otp',{method:'POST',body:jsonBody({phone})});setOtpSent(true);setMessage('The authentication provider accepted the code request. Enter the code you receive.');return}await platformApi('/api/auth/verify-otp',{method:'POST',body:jsonBody({phone,token:String(data.token||'').trim()})})}
+  else await platformApi('/api/auth/login',{method:'POST',body:jsonBody({email:String(data.email||'').trim(),password:data.password})});
+  const query=new URLSearchParams(window.location.search);window.location.assign(safeReturnTo(query.get('returnTo')||query.get('next')));
+ }catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ const title=mode==='register'?'Create your Bhramari account':mode==='reset'?'Choose a new password':recover?'Reset your password':'Welcome back';
+ return <section className='wrap platform-auth-page'><div className='platform-auth-intro'><span className='eyebrow'>BHRAMARI ENTERPRISES / YOUR ACCOUNT</span><h1>{title}.</h1><p className='lead'>{mode==='register'?'One account for your programme information, enquiries and conversations with Bhramari.':mode==='reset'?'Use the secure recovery link from your email to choose a new password.':'Access your Bhramari account, programme information and enquiries.'}</p><p>Explore our business verticals and programmes freely. An account is optional for a general enquiry.</p><Link href='/businesses/yoga-wellness/' className='text-link'>Explore Yoga & Wellness ↗</Link></div><div className='platform-auth-panel'>
+ {loading?<p role='status'>Checking secure account availability…</p>:<>
+ {!ready&&config&&<ConfigurationNotice/>}{!config&&error&&<div className='platform-notice' role='alert'><p>{error}</p><button className='platform-plain-button' onClick={()=>void load()}>Try again</button></div>}
+ {mode==='login'&&!recover&&<div className='auth-methods' role='group' aria-label='Sign-in method'><button type='button' aria-pressed={method==='email'} onClick={()=>{setMethod('email');setError('');setMessage('')}}>Email</button><button type='button' aria-pressed={method==='phone'} onClick={()=>{setMethod('phone');setError('');setMessage('')}}>Mobile number</button></div>}
+ {method==='phone'&&mode==='login'&&!recover&&<p className='platform-small-notice'>{phoneReady?'Use a mobile number already enabled for sign-in by the authentication service. A profile contact number alone does not enable OTP login.':'Mobile OTP requires a configured authentication and SMS provider. It is not live yet.'}</p>}
+ <form className='platform-form' onSubmit={submit} aria-label={title}>
+ <fieldset disabled={busy||!ready||(mode==='login'&&method==='phone'&&!phoneReady&&!recover)}>
+ {mode==='register'&&<label>Full name<input name='full_name' autoComplete='name' required minLength={2} maxLength={100}/></label>}
+ {mode!=='reset'&&(method==='email'||mode==='register'||recover)&&<label>Email<input name='email' type='email' autoComplete='email' required maxLength={254}/></label>}
+ {(mode==='register'||(mode==='login'&&method==='phone'&&!recover))&&<label>Mobile number <small>Include country code</small><input name='phone' type='tel' autoComplete='tel' value={mode==='register'?undefined:phone} onChange={mode==='register'?undefined:e=>{setPhone(e.target.value);setOtpSent(false)}} required minLength={8} maxLength={25}/></label>}
+ {mode==='login'&&method==='phone'&&otpSent&&!recover&&<label>Verification code<input name='token' autoComplete='one-time-code' inputMode='numeric' required minLength={4} maxLength={10}/></label>}
+ {(mode==='register'||mode==='reset'||(method==='email'&&!recover))&&<label>{mode==='reset'?'New password':'Password'}<input name='password' type='password' autoComplete={mode==='login'?'current-password':'new-password'} required minLength={mode==='login'?1:12} maxLength={128}/>{mode!=='login'&&<small>Use at least 12 characters.</small>}</label>}
+ {(mode==='register'||mode==='reset')&&<label>Confirm password<input name='confirm_password' type='password' autoComplete='new-password' required minLength={12} maxLength={128}/></label>}
+ {mode==='register'&&<><label className='platform-check'><input name='privacy' type='checkbox' required/><span>I have read the <Link href='/privacy/'>privacy notice</Link> and agree to the use of my details to create and manage this account.</span></label><label className='platform-check'><input name='whatsapp_opt_in' type='checkbox'/><span>Receive programme-related updates on WhatsApp. Optional; this is separate from promotional marketing.</span></label></>}
+ <button type='submit' className='button'>{busy?'Please wait…':mode==='register'?'Create account':mode==='reset'?'Update password':recover?'Request recovery email':method==='phone'?(otpSent?'Verify and log in':'Request verification code'):'Login'}<span aria-hidden='true'>↗</span></button>
+ </fieldset></form>
+ {error&&config&&<p role='alert' className='platform-feedback'>{error}</p>}{message&&<div role='status' className='platform-feedback'><p>{message}</p>{mode==='register'&&<Link href={'/login/?returnTo='+encodeURIComponent(returnTo)} className='text-link'>Continue to login ↗</Link>}{mode==='reset'&&<Link href='/account/' className='text-link'>My Bhramari ↗</Link>}</div>}
+ {mode==='login'&&<><button className='platform-plain-button auth-recovery' type='button' onClick={()=>{setRecover(!recover);setError('');setMessage('')}}>{recover?'Return to login':'Forgot your password?'}</button><p className='auth-switch'>New to Bhramari? <Link href={'/create-account/?returnTo='+encodeURIComponent(returnTo)}>Create account</Link></p></>}
+ {mode==='register'&&<p className='auth-switch'>Already have an account? <Link href={'/login/?returnTo='+encodeURIComponent(returnTo)}>Login</Link></p>}
+ </>}
+ </div></section>;
+}
