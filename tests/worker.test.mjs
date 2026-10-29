@@ -7,10 +7,10 @@ const {yogaProgrammes}=require('../lib/yoga-programmes.ts');
 const {defaultSiteSettings}=require('../lib/platform-defaults.ts');
 const userId='11111111-1111-4111-8111-111111111111',otherId='22222222-2222-4222-8222-222222222222',batchId='33333333-3333-4333-8333-333333333333';
 const seed={settings:defaultSiteSettings,programmes:yogaProgrammes.map(content=>({id:content.slug,content,display:true,availability:'Enquiries open'})),batches:[],reels:[],contentBlocks:[],backendConfigured:false};
-const env={SUPABASE_URL:'https://test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_unit_test',SUPABASE_SERVICE_ROLE_KEY:'unit-test-server-secret',RATE_LIMIT_SALT:'unit-test-only'};
+const env={SUPABASE_URL:'https://test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_unit_test',SUPABASE_SERVICE_ROLE_KEY:'unit-test-server-secret',RATE_LIMIT_SALT:'unit-test-only',EMAIL_DELIVERY_ENABLED:'true'};
 const profile={user_id:userId,full_name:'Test customer',email:'test@example.com',phone:'9000000000',whatsapp_opt_in:false};
 function setup(options={}){
-  const calls=[];const state={settings:{...seed.settings},...options};
+  const calls=[];const state={settings:{...seed.settings},...options};const runtimeEnv={...env};if(Object.hasOwn(options,'emailDeliveryFlag')){if(options.emailDeliveryFlag===undefined)delete runtimeEnv.EMAIL_DELIVERY_ENABLED;else runtimeEnv.EMAIL_DELIVERY_ENABLED=options.emailDeliveryFlag;}
   const upstream=async(url,init={})=>{const path=new URL(url).pathname;const query=new URL(url).searchParams;const body=init.body?JSON.parse(init.body):null;calls.push({path,query,init,body});const ok=(data,headers={})=>new Response(init.method==='HEAD'?null:JSON.stringify(data),{headers:{'Content-Type':'application/json',...headers}});
     if(path.endsWith('/rpc/consume_rate_limit'))return ok(state.rateAllowed!==false);
     if(path.endsWith('/auth/v1/user')){if(init.method==='PUT')return ok({id:userId});if(init.headers.Authorization==='Bearer valid-user'||init.headers.Authorization==='Bearer valid-admin'||init.headers.Authorization==='Bearer rotated-token')return ok({id:userId,email:profile.email,email_confirmed_at:'2026-10-01',user_metadata:{role:'admin'}});return new Response('{}',{status:401})}
@@ -31,7 +31,7 @@ function setup(options={}){
     throw Error('Unexpected upstream request: '+path);
   };
   const app=createApp({seed,fetchImpl:upstream,serveAsset:async request=>new Response('<!doctype html><html><head><title>Published title</title><meta name="description" content="Published description"><link rel="canonical" href="https://example.com/"><meta property="og:url" content="https://example.com/"></head><body>Published public shell</body></html>',{headers:{'Content-Type':'text/html'}})});
-  async function request(path,{method='GET',body,cookie='',origin='https://bhramari.test',configured=true,headers={}}={}){return app.fetch(new Request('https://bhramari.test'+path,{method,headers:{...(method!=='GET'?{Origin:origin,'Content-Type':'application/json'}:{}),...(cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)}),configured?env:{});}
+  async function request(path,{method='GET',body,cookie='',origin='https://bhramari.test',configured=true,headers={}}={}){return app.fetch(new Request('https://bhramari.test'+path,{method,headers:{...(method!=='GET'?{Origin:origin,'Content-Type':'application/json'}:{}),...(cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)}),configured?runtimeEnv:{});}
   return {request,calls,state};
 }
 const userCookie='bhramari_access=valid-user',adminCookie='bhramari_access=valid-admin';
@@ -66,3 +66,38 @@ test('admin settings changes are immediately available without a rebuild',async(
 test('unsafe Instagram/website URLs are rejected in settings',async()=>{const s=setup();const r=await s.request('/api/admin/settings/public',{method:'PATCH',cookie:adminCookie,body:{content:{...seed.settings,instagramUrl:'javascript:alert(1)'}}});assert.equal(r.status,400);assert(!s.calls.some(c=>c.path.endsWith('/site_settings')&&c.init.method==='PATCH'))});
 test('a hidden programme is removed from public direct-page serving',async()=>{const s=setup({hiddenProgramme:true});const r=await s.request('/businesses/yoga-wellness/7-day-course/');assert.equal(r.status,404)});
 test('no mutation accepts an unbounded body',async()=>{const s=setup();const r=await s.request('/api/enquiries',{method:'POST',body:{...enquiry,message:'a'.repeat(70000)}});assert.equal(r.status,413);assert(!s.calls.some(c=>c.path.endsWith('/submit_enquiry')))});
+
+test('email-delivery readiness is independent from password login availability',async()=>{
+  const s=setup({emailDeliveryFlag:'false'});const response=await s.request('/api/config');const config=(await response.json()).data;
+  assert.equal(config.configured,true);assert.equal(config.emailAuthEnabled,true);assert.equal(config.emailDeliveryEnabled,false);assert.equal(s.calls.length,0);
+  const unconfigured=await s.request('/api/config',{configured:false});const missing=(await unconfigured.json()).data;
+  assert.equal(missing.emailAuthEnabled,false);assert.equal(missing.emailDeliveryEnabled,false);
+});
+
+test('missing or unverified email delivery cannot create users or request recovery mail',async()=>{
+  for(const emailDeliveryFlag of [undefined,'false','TRUE']){
+    const s=setup({emailDeliveryFlag});
+    const registration=await s.request('/api/auth/register',{method:'POST',body:{full_name:'Test customer',email:'test@example.com',phone:'+919000000000',password:'long-secure-password',privacy:true,whatsapp_opt_in:false}});
+    assert.equal(registration.status,503);const result=await registration.json();assert.equal(result.code,'EMAIL_DELIVERY_NOT_CONFIGURED');assert.equal(result.data,undefined);assert.equal(registration.headers.getSetCookie().length,0);
+    const recovery=await s.request('/api/auth/recover',{method:'POST',body:{email:'test@example.com'}});
+    assert.equal(recovery.status,503);assert.equal((await recovery.json()).code,'EMAIL_DELIVERY_NOT_CONFIGURED');assert.equal(recovery.headers.getSetCookie().length,0);
+    assert.equal(s.calls.length,0,'disabled email flow must not call Auth or database rate functions');
+  }
+});
+
+test('existing password and verified administrator access work with email delivery disabled',async()=>{
+  const s=setup({emailDeliveryFlag:'false'});let response=await s.request('/api/auth/login',{method:'POST',body:{email:'test@example.com',password:'existing-long-password'}});
+  assert.equal(response.status,200);assert.equal((await response.json()).data.signedIn,true);assert.equal(response.headers.getSetCookie().length,2);assert(s.calls.some(call=>call.path.endsWith('/auth/v1/token')));
+  response=await s.request('/api/me',{cookie:adminCookie});assert.equal(response.status,200);assert.equal((await response.json()).data.role,'admin');
+  assert(!s.calls.some(call=>call.path.endsWith('/signup')||call.path.endsWith('/recover')));
+});
+
+test('explicitly configured email delivery permits a real provider recovery request',async()=>{
+  const s=setup();let response=await s.request('/api/config');assert.equal((await response.json()).data.emailDeliveryEnabled,true);
+  response=await s.request('/api/auth/recover',{method:'POST',body:{email:'test@example.com'}});assert.equal(response.status,200);assert.equal((await response.json()).data.requested,true);assert(s.calls.some(call=>call.path.endsWith('/auth/v1/recover')));
+});
+
+test('delivery gate preserves validation of an existing provider confirmation link',async()=>{
+  const s=setup({emailDeliveryFlag:'false'});const response=await s.request('/api/auth/confirm?token_hash=existing-valid-token-hash&type=email');
+  assert.equal(response.status,303);assert.equal(response.headers.getSetCookie().length,2);assert(s.calls.some(call=>call.path.endsWith('/auth/v1/verify')));
+});

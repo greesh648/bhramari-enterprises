@@ -4,7 +4,7 @@ The existing Next.js/TypeScript website, supplied logo, white design and six bus
 
 ## Current readiness
 
-The website and server architecture are implemented. **Supabase project credentials, SMTP/SMS services and official contact/social details are not supplied.** Until connected, account and save operations visibly say **Requires backend configuration**. No users, OTPs, enquiries, confirmations, payments or automatic WhatsApp messages are fabricated.
+The website and server architecture are implemented. A dedicated Supabase project and its 13 protected application tables have been provisioned. Official contact, Instagram and WhatsApp links are configured. The live Vercel connection requires its server-only environment values. Candidate signup/recovery remain disabled until real SMTP delivery and secure confirmation/recovery email templates have been verified and `EMAIL_DELIVERY_ENABLED=true` is set. No users, OTPs, enquiries, confirmations, payments or automatic WhatsApp messages are fabricated. See [live connection setup](docs/LIVE-CONNECTION.md).
 
 The existing Sites review audience remains private. Bhramari customer authentication is separate from the outer ChatGPT review-site sign-in. Do not advertise customer access until the final host/audience and backend have been configured and tested. The proposed bhramarienterprises.com domain has not been purchased or connected.
 

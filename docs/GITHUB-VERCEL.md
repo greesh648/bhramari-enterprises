@@ -45,6 +45,7 @@ The website needs Supabase before new accounts or enquiries can be saved. Add th
 | `SUPABASE_PUBLISHABLE_KEY` | That project's publishable/public API key |
 | `SUPABASE_SERVICE_ROLE_KEY` | That project's privileged server-only service key; mark sensitive where available |
 | `RATE_LIMIT_SALT` | A new strong random server-only value, distinct from the service key |
+| `EMAIL_DELIVERY_ENABLED` | `false` until custom SMTP and secure signup/recovery templates have been verified; then `true` |
 | `PHONE_OTP_ENABLED` | `false` until real SMS delivery and existing Auth phone identities are configured and tested |
 | `TURNSTILE_SITE_KEY` | Optional Turnstile site key for the actual hostname |
 | `TURNSTILE_SECRET_KEY` | Matching optional server-only secret |

@@ -1,4 +1,4 @@
-export const site={name:'BHRAMARI ENTERPRISES',url:process.env.NEXT_PUBLIC_SITE_URL||'https://bhramari-enterprises.gladwand129.chatgpt.site',logo:{src:'/images/bhramari-logo.jpg',alt:'Bhramari symbol and wordmark'},contact:{email:'',phone:'',address:''},socials:[] as {label:string;url:string}[],hero:{src:'',alt:'Abstract connected geometric forms'}};
+export const site={name:'BHRAMARI ENTERPRISES',url:process.env.NEXT_PUBLIC_SITE_URL||'https://bhramari-enterprises.vercel.app',logo:{src:'/images/bhramari-logo.jpg',alt:'Bhramari symbol and wordmark'},contact:{email:'bhramarienterprises2@gmail.com',phone:'+91 8130525975',address:''},socials:[{label:'Instagram',url:'https://www.instagram.com/bhramariyoga_wellness/'}] as {label:string;url:string}[],hero:{src:'',alt:'Abstract connected geometric forms'}};
 export const businesses = [
   {
     "slug": "yoga-wellness",

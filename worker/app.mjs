@@ -12,6 +12,7 @@ export function createApp({serveAsset,seed,fetchImpl=fetch}) {
   const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
   const text=(value,max=5000)=>typeof value==='string'?value.trim().slice(0,max):'';
   function configured(env){return Boolean(env.SUPABASE_URL&&env.SUPABASE_PUBLISHABLE_KEY&&env.SUPABASE_SERVICE_ROLE_KEY)}
+  function emailDeliveryEnabled(env){return configured(env)&&env.EMAIL_DELIVERY_ENABLED==='true'}
   function requireBackend(env){if(!configured(env))throw problem('Requires backend configuration. Connect Supabase before using accounts or saving enquiries.',503,'BACKEND_NOT_CONFIGURED')}
   function safeReturn(value,fallback='/account/'){return typeof value==='string'&&/^\/(?!\/)/.test(value)&&!/[\\\r\n]/.test(value)?value:fallback}
   function safeURL(value,hosts=null,allowEmpty=true){if(!value&&allowEmpty)return '';try{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||hosts&&!hosts.some(h=>u.hostname===h||u.hostname.endsWith('.'+h)))throw Error();return u.href}catch{throw problem('Please enter a valid secure URL for this service.')}}
@@ -76,7 +77,7 @@ export function createApp({serveAsset,seed,fetchImpl=fetch}) {
     const total=Number(response.headers.get('content-range')?.split('/')[1]);return json({items,total:Number.isFinite(total)?total:items.length,page,pageSize});
   }
   async function api(request,env,context,path){
-    if(path==='/api/config'&&request.method==='GET')return json({configured:configured(env),phoneOtpEnabled:configured(env)&&env.PHONE_OTP_ENABLED==='true',emailAuthEnabled:configured(env),turnstileSiteKey:env.TURNSTILE_SECRET_KEY?env.TURNSTILE_SITE_KEY||'':''});
+    if(path==='/api/config'&&request.method==='GET')return json({configured:configured(env),phoneOtpEnabled:configured(env)&&env.PHONE_OTP_ENABLED==='true',emailAuthEnabled:configured(env),emailDeliveryEnabled:emailDeliveryEnabled(env),turnstileSiteKey:env.TURNSTILE_SECRET_KEY?env.TURNSTILE_SITE_KEY||'':''});
     if(path==='/api/public'&&request.method==='GET'){try{return json(await publicContent(env))}catch{return json({...publicFallback(),contentUnavailable:true})}}
     if(path==='/api/auth/logout'&&request.method==='POST'){if(configured(env)){try{const user=await identity(request,env,context);if(user)await supabase(env,'/auth/v1/logout?scope=local',{method:'POST',token:context.token})}catch{ /* Local cookies are cleared even if the provider is unavailable. */ }}clearSession(context,request);return json({signedOut:true})}
     if(path==='/api/me'&&request.method==='GET'&&new URL(request.url).searchParams.get('optional')==='1'){if(!configured(env))return json(null);const optional=await identity(request,env,context);if(!optional||!optional.email_confirmed_at&&!optional.phone_confirmed_at)return json(null)}
@@ -85,6 +86,7 @@ export function createApp({serveAsset,seed,fetchImpl=fetch}) {
       const url=new URL(request.url);const type=url.searchParams.get('type');if(!['signup','email','recovery'].includes(type))throw problem('This verification link is invalid.');const token_hash=bounded(url.searchParams.get('token_hash'),10,2000,'the verification link');const {data}=await supabase(env,'/auth/v1/verify',{method:'POST',body:{token_hash,type}});setSession(context,data,request);return Response.redirect(new URL(type==='recovery'?'/reset-password/':'/account/',request.url),303);
     }
     if(path.startsWith('/api/auth/')&&request.method==='POST'){
+      if((path==='/api/auth/register'||path==='/api/auth/recover')&&!emailDeliveryEnabled(env))throw problem('Email verification and password recovery are not available yet. Please contact Bhramari for programme enquiries. Existing verified accounts can still log in.',503,'EMAIL_DELIVERY_NOT_CONFIGURED');
       const body=await bodyOf(request);await rate(request,env,'auth-'+path.split('/').pop(),10,900);
       if(path==='/api/auth/login'){const {data}=await supabase(env,'/auth/v1/token?grant_type=password',{method:'POST',body:{email:email(body.email),password:bounded(body.password,1,256,'your password')}});setSession(context,data,request);return json({signedIn:true})}
       if(path==='/api/auth/register'){

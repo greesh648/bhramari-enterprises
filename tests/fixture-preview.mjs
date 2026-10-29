@@ -37,7 +37,7 @@ const db={
   yoga_batches:[],yoga_enrollments:[],enquiries:[],social_reels:[],content_blocks:[],
   batch_access:[],enquiry_notes:[],enrollment_notes:[],
 };
-const env={SUPABASE_URL:fixtureOrigin,SUPABASE_PUBLISHABLE_KEY:'fixture-publishable-key-only',SUPABASE_SERVICE_ROLE_KEY:'fixture-server-key-only',RATE_LIMIT_SALT:'fixture-only-no-real-identifiers',PHONE_OTP_ENABLED:'false'};
+const env={SUPABASE_URL:fixtureOrigin,SUPABASE_PUBLISHABLE_KEY:'fixture-publishable-key-only',SUPABASE_SERVICE_ROLE_KEY:'fixture-server-key-only',RATE_LIMIT_SALT:'fixture-only-no-real-identifiers',PHONE_OTP_ENABLED:'false',EMAIL_DELIVERY_ENABLED:'true'};
 const sessions=new Map();
 const refreshTokens=new Map();
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.txt':'text/plain; charset=utf-8','.xml':'application/xml; charset=utf-8','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.avif':'image/avif','.svg':'image/svg+xml','.ico':'image/x-icon','.ttf':'font/ttf','.woff2':'font/woff2'};
