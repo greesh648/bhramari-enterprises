@@ -31,6 +31,6 @@ export function ProgrammeComparison() {
   return <section className='section programme-comparison' aria-labelledby='compare-heading'>
     <div className='section-heading'><div><span className='eyebrow'>A ROUTINE THAT FITS</span><h2 id='compare-heading'>Find the programme<br/>that fits your routine.</h2></div><p>Morning or evening. A first step or a longer journey.<br/>All timings are in Indian Standard Time.</p></div>
     <table><caption className='sr-only'>Yoga programme duration, session timing in IST and fee</caption><thead><tr><th scope='col'>Programme</th><th scope='col'>Duration</th><th scope='col'>Timing · IST</th><th scope='col'>Programme fee</th></tr></thead><tbody>{programmes.map(p=><tr key={p.slug}><th scope='row'><Link href={programmeHref(p.slug)}>{p.title}<ArrowUpRight size={15}/></Link></th><td data-label='Duration'>{p.duration}</td><td data-label='Timing · IST'>{p.timing}</td><td data-label='Programme fee'><ProgrammePrice programme={p}/></td></tr>)}</tbody></table>
-    <p className='small comparison-note'>Start dates, meeting days, delivery format and fee details are confirmed before booking. Enquiries register interest and do not reserve a place.</p>
+    <p className='small comparison-note'>Start dates, meeting days, fee inclusions and booking terms are confirmed before enrolment. Enquiries register interest and do not reserve a place.</p>
   </section>;
 }

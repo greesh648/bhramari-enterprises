@@ -1,4 +1,4 @@
-/** Owner-editable yoga catalogue. Prices are intentionally unconfigured.
+/** Owner-editable yoga catalogue. Prices are confirmed by the business owner.
  * Set price to the verified display string (including currency and fee basis).
  * Confirm start date, meeting days, format and venue before accepting bookings.
  * Empty image paths use our local SVG illustrations without broken images.
@@ -29,7 +29,7 @@ const essentials = ['A yoga mat and comfortable clothing', 'Water and a quiet pr
 export const yogaProgrammes: YogaProgramme[] = [
   {
     slug: '7-day-course', title: '7-Day Yoga Course', shortTitle: 'Begin with intention.',
-    duration: '7 Days', timing: '7:00 AM – 8:00 AM', price: null, illustration: 'seated',
+    duration: '7 Days', timing: '7:00 AM – 8:00 AM', price: '₹899', illustration: 'seated',
     image: { src: '', alt: 'Woman seated in a calm, cross-legged yoga posture' },
     shortDescription: 'A short guided introduction to help you begin a consistent yoga practice.',
     description: 'A considered first step into yoga. Across seven days, explore familiar foundations, simple movement and breathing awareness, with time to notice your own pace. The emphasis is on understanding the practice and finding a manageable way to continue.',
@@ -54,7 +54,7 @@ export const yogaProgrammes: YogaProgramme[] = [
   },
   {
     slug: '21-day-course', title: '21-Day Yoga Course', shortTitle: 'Make room for consistency.',
-    duration: '21 Days', timing: '7:00 AM – 8:00 AM', price: null, illustration: 'tree',
+    duration: '21 Days', timing: '7:00 AM – 8:00 AM', price: '₹2,599', illustration: 'tree',
     image: { src: '', alt: 'Woman standing in a supported, balanced tree yoga posture' },
     shortDescription: 'A structured 21-day journey for consistency and a stronger personal practice.',
     description: 'Give your practice a little more time to become familiar. This three-week journey revisits the foundations, introduces considered progressions and brings movement, balance and breathing awareness into a repeatable routine.',
@@ -75,7 +75,7 @@ export const yogaProgrammes: YogaProgramme[] = [
   },
   {
     slug: '1-month-batch', title: '1-Month Yoga Batch', shortTitle: 'An evening rhythm, your own.',
-    duration: '1 Month', timing: '6:30 PM – 7:30 PM', price: null, illustration: 'warrior',
+    duration: '1 Month', timing: '6:30 PM – 7:30 PM', price: '₹3,499', illustration: 'warrior',
     image: { src: '', alt: 'Woman in a grounded warrior-inspired yoga posture' },
     shortDescription: 'An evening programme for regular movement, balance and a mindful practice.',
     description: 'Create a regular space for movement at the close of your day. This month-long batch balances familiar foundations with gradual exploration, using guided sequences, considered pacing and time for relaxation.',
@@ -97,7 +97,7 @@ export const yogaProgrammes: YogaProgramme[] = [
   },
   {
     slug: '3-month-programme', title: '3-Month Progressive Yoga Programme', shortTitle: 'A practice that grows with you.',
-    duration: '3 Months', timing: '5:30 AM – 6:30 AM', price: null, illustration: 'dancer',
+    duration: '3 Months', timing: '5:30 AM – 6:30 AM', price: '₹4,999', illustration: 'dancer',
     image: { src: '', alt: 'Woman exploring an elegant dancer-inspired balance posture' },
     shortDescription: 'A longer, progressive practice in consistency, strength, balance and mindful movement.',
     description: 'Take a longer view of your practice. This three-month programme begins with foundations and consistency, then explores strength, balance and mobility before bringing the elements into integrated sequences. Progression follows readiness rather than a fixed performance target.',
@@ -113,7 +113,7 @@ export const yogaProgrammes: YogaProgramme[] = [
     faqs: [
       { question: 'Must I be able to do advanced postures?', answer: 'No. The illustration represents one aspect of yoga, not an entry requirement or promised outcome. Practice is introduced progressively according to readiness and guidance.' },
       { question: 'How is progression decided?', answer: 'The curriculum provides a broad structure. Pace, variations and complexity are discussed with the instructor and adjusted to the participants and confirmed programme.' },
-      { question: 'What does the three-month fee include?', answer: 'Pricing, session frequency, inclusions and any payment or cancellation terms will be confirmed before booking. No payment is collected on this website.' },
+      { question: 'What does the three-month fee include?', answer: 'Please confirm session frequency, inclusions, payment and cancellation terms with Bhramari before booking. No payment is collected on this website.' },
     ],
   },
 ];
