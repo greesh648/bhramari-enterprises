@@ -12,6 +12,7 @@ const profile={user_id:userId,full_name:'Test customer',email:'test@example.com'
 function setup(options={}){
   const calls=[];const state={settings:{...seed.settings},...options};const runtimeEnv={...env};if(Object.hasOwn(options,'emailDeliveryFlag')){if(options.emailDeliveryFlag===undefined)delete runtimeEnv.EMAIL_DELIVERY_ENABLED;else runtimeEnv.EMAIL_DELIVERY_ENABLED=options.emailDeliveryFlag;}
   const upstream=async(url,init={})=>{const path=new URL(url).pathname;const query=new URL(url).searchParams;const body=init.body?JSON.parse(init.body):null;calls.push({path,query,init,body});const ok=(data,headers={})=>new Response(init.method==='HEAD'?null:JSON.stringify(data),{headers:{'Content-Type':'application/json',...headers}});
+    if(state.upstreamFailure?.path===path)return new Response(state.upstreamFailure.body||'{}',{status:state.upstreamFailure.status,headers:{'Content-Type':'application/json'}});
     if(path.endsWith('/rpc/consume_rate_limit'))return ok(state.rateAllowed!==false);
     if(path.endsWith('/auth/v1/user')){if(init.method==='PUT')return ok({id:userId});if(init.headers.Authorization==='Bearer valid-user'||init.headers.Authorization==='Bearer valid-admin'||init.headers.Authorization==='Bearer rotated-token')return ok({id:userId,email:profile.email,email_confirmed_at:'2026-10-01',user_metadata:{role:'admin'}});return new Response('{}',{status:401})}
     if(path.endsWith('/auth/v1/token')){if(state.invalidLogin)return new Response('{}',{status:400});return ok({access_token:query.get('grant_type')==='refresh_token'?'rotated-token':'valid-user',refresh_token:'new-refresh-token',expires_in:3600})}
@@ -50,6 +51,45 @@ test('failed login does not mint a session',async()=>{const s=setup({invalidLogi
 test('refresh rotates cookies and verifies the resulting identity',async()=>{const s=setup();const r=await s.request('/api/me',{cookie:'bhramari_access=expired;bhramari_refresh=old-refresh'});assert.equal(r.status,200);assert(r.headers.getSetCookie().some(c=>c.includes('rotated-token')));assert(s.calls.some(c=>c.path.endsWith('/auth/v1/user')&&c.init.headers.Authorization==='Bearer rotated-token'))});
 test('logout clears local session even when backend is unconfigured',async()=>{const s=setup();const r=await s.request('/api/auth/logout',{method:'POST',configured:false});assert.equal(r.status,200);assert.equal(r.headers.getSetCookie().length,2);assert(r.headers.getSetCookie().every(c=>c.includes('Max-Age=0')))});
 test('sign-up awaits real verification and does not manually store passwords',async()=>{const s=setup();const r=await s.request('/api/auth/register',{method:'POST',body:{full_name:'Test customer',email:'test@example.com',phone:'+919000000000',password:'long-secure-password',privacy:true,whatsapp_opt_in:false,role:'admin'}});assert.equal((await r.json()).data.verificationRequired,true);const call=s.calls.find(c=>c.path.endsWith('/signup'));assert.equal(call.body.data.role,undefined);assert(!s.calls.some(c=>c.path.endsWith('/profiles')&&c.init.method==='POST'))});
+test('signup and recovery provider failures return a safe retryable error without a session or false success',async()=>{
+  const diagnostic='SMTP 535 private-credential-marker '+env.SUPABASE_SERVICE_ROLE_KEY;
+  for(const [route,upstreamPath] of [['register','signup'],['recover','recover']]){
+    for(const status of [500,503]){
+      const s=setup({upstreamFailure:{path:'/auth/v1/'+upstreamPath,status,body:status===500?JSON.stringify({code:'unexpected_failure',msg:diagnostic,access_token:'private-access-marker',refresh_token:'private-refresh-marker'}):diagnostic}});
+      const response=await s.request('/api/auth/'+route,{method:'POST',body:{full_name:'Test customer',email:'test@example.com',phone:'+919000000000',password:'long-secure-password',privacy:true}});
+      assert.equal(response.status,503);assert.equal(response.headers.getSetCookie().length,0);
+      const raw=await response.text();const result=JSON.parse(raw);
+      assert.deepEqual(result,{error:'Account email delivery is temporarily unavailable. Please try again later or contact Bhramari.',code:'EMAIL_DELIVERY_FAILED'});
+      for(const sensitive of [diagnostic,env.SUPABASE_SERVICE_ROLE_KEY,'unexpected_failure','private-access-marker','private-refresh-marker'])assert(!raw.includes(sensitive));
+      assert.equal(result.data,undefined);assert.equal(result.verificationRequired,undefined);
+      assert(s.calls.some(call=>call.path==='/auth/v1/'+upstreamPath));
+    }
+  }
+});
+test('email provider error bodies are cancelled even when stream cleanup rejects',async()=>{
+  for(const rejects of [false,true]){
+    let cancelled=false;
+    const body=new ReadableStream({cancel(){cancelled=true;if(rejects)return Promise.reject(new Error('private cancellation diagnostic'));}});
+    const s=setup({upstreamFailure:{path:'/auth/v1/signup',status:500,body}});
+    const response=await s.request('/api/auth/register',{method:'POST',body:{full_name:'Test customer',email:'test@example.com',phone:'+919000000000',password:'long-secure-password',privacy:true}});
+    assert.equal(cancelled,true);assert.equal(response.status,503);assert.equal(response.headers.getSetCookie().length,0);
+    assert.deepEqual(await response.json(),{error:'Account email delivery is temporarily unavailable. Please try again later or contact Bhramari.',code:'EMAIL_DELIVERY_FAILED'});
+  }
+});
+test('email delivery error mapping preserves existing authorization, throttling and unrelated provider errors',async()=>{
+  for(const route of ['register','recover']){
+    for(const status of [400,401,403,429]){
+      const s=setup({upstreamFailure:{path:'/auth/v1/'+(route==='register'?'signup':'recover'),status}});
+      const response=await s.request('/api/auth/'+route,{method:'POST',body:{full_name:'Test customer',email:'test@example.com',phone:'+919000000000',password:'long-secure-password',privacy:true}});
+      assert.equal(response.status,status);assert.equal((await response.json()).code,'UPSTREAM_REQUEST_FAILED');assert.equal(response.headers.getSetCookie().length,0);
+    }
+  }
+  for(const upstreamPath of ['/rest/v1/rpc/consume_rate_limit','/auth/v1/token']){
+    const s=setup({upstreamFailure:{path:upstreamPath,status:500}});
+    const response=await s.request('/api/auth/login',{method:'POST',body:{email:'test@example.com',password:'long-secure-password'}});
+    assert.equal(response.status,400);assert.equal((await response.json()).code,'UPSTREAM_REQUEST_FAILED');assert.equal(response.headers.getSetCookie().length,0);
+  }
+});
 test('short passwords and missing registration consent are rejected',async()=>{for(const body of [{privacy:false,password:'long-password-123'},{privacy:true,password:'short'}]){const s=setup();const r=await s.request('/api/auth/register',{method:'POST',body:{full_name:'Test',email:'test@example.com',phone:'+919000000000',...body}});assert.equal(r.status,400);assert(!s.calls.some(c=>c.path.endsWith('/signup')))}});
 test('phone OTP does not run until explicitly configured',async()=>{const s=setup();const r=await s.request('/api/auth/otp',{method:'POST',body:{phone:'+919000000000'}});assert.equal(r.status,503);assert(!s.calls.some(c=>c.path.endsWith('/otp')))});
 test('enquiry validation blocks missing consent, spam traps and punctuation-only phone',async()=>{for(const changes of [{privacy:false},{website:'spam'},{phone:'-------'},{programme_id:'not-a-programme'},{message:'short'}]){const s=setup();const r=await s.request('/api/enquiries',{method:'POST',body:{...enquiry,...changes}});assert.equal(r.status,400);assert(!s.calls.some(c=>c.path.endsWith('/submit_enquiry')))}});

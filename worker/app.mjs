@@ -28,6 +28,10 @@ export function createApp({serveAsset,seed,fetchImpl=fetch}) {
   async function supabase(env,path,{method='GET',body,token,service=false,headers={}}={}){
     const key=service?env.SUPABASE_SERVICE_ROLE_KEY:env.SUPABASE_PUBLISHABLE_KEY;
     let response;try{response=await fetchImpl(env.SUPABASE_URL.replace(/\/$/,'')+path,{method,headers:{apikey:key,...(token?{Authorization:'Bearer '+token}:service&&key.startsWith('eyJ')?{Authorization:'Bearer '+key}:{}),'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)})}catch{throw problem('The account service is temporarily unavailable. Please try again.',502,'UPSTREAM_UNAVAILABLE')}
+    if(method==='POST'&&/^\/auth\/v1\/(?:signup|recover)(?:\?|$)/.test(path)&&response.status>=500){
+      try{await response.body?.cancel()}catch{ /* Keep the safe email error if stream cleanup fails. */ }
+      throw problem('Account email delivery is temporarily unavailable. Please try again later or contact Bhramari.',503,'EMAIL_DELIVERY_FAILED');
+    }
     let data=null;if(method!=='HEAD'){const raw=await response.text();if(raw){try{data=JSON.parse(raw)}catch{throw problem('The account service returned an unexpected response.',502,'UPSTREAM_ERROR')}}}
     if(!response.ok){const status=response.status===429?429:response.status===401?401:response.status===403?403:400;const errors={401:'Please sign in again.',403:'You do not have permission to perform this action.',429:'Too many attempts. Please wait before trying again.'};throw problem(errors[status]||'The request could not be completed. Check your information and backend setup.',status,'UPSTREAM_REQUEST_FAILED')}
     return {data,response};
