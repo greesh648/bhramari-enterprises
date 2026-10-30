@@ -105,7 +105,7 @@ Contact Details in /admin/ controls one public phone, WhatsApp number, email and
 
 Social / Reels allows manually selected official Instagram URLs and optional thumbnails; the page shows up to six published cards. No scraping or automatic Instagram API sync is included. No Instagram tracking/embed scripts load automatically; configured thumbnails may load from their source.
 
-Meta/WhatsApp AI and automated business messaging require separate eligible official services and provider configuration. The optional official Cloud API registration-welcome integration is disabled by default. See docs/WHATSAPP.md for the remaining sender/template setup, manual owner drafts and delivery limitations. Optional programme-update consent is unchecked and separate from marketing.
+Meta/WhatsApp AI and automated business messaging require separate eligible official services and provider configuration. The optional official Cloud API registration-welcome and enquiry-acknowledgement integration is disabled by default. See docs/WHATSAPP.md for the remaining sender/template setup, manual owner drafts and delivery limitations. Optional programme-update consent is unchecked and separate from marketing.
 
 Zoom URLs, passcodes and official batch WhatsApp group invitations belong only in a batch's private joining editor. Public settings, descriptions and notices must never contain them. No Zoom API credentials or automated meeting creation are implemented.
 

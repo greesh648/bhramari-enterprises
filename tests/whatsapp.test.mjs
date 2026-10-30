@@ -12,3 +12,10 @@ test('owner welcome drafts require consent and an unambiguous international numb
   assert.match(url.searchParams.get('text'),/Welcome to Bhramari Enterprises/);
   assert.match(url.searchParams.get('text'),/Reply STOP/);
 });
+
+test('owner welcome drafts address the registrant and do not claim to choose the sending account',()=>{
+  const draft=new URL(registrationWhatsAppDraft({phone:'+1 (202) 555-0123',whatsapp_opt_in:true}));
+  assert.equal(draft.origin,'https://wa.me');assert.equal(draft.pathname,'/12025550123');
+  assert.deepEqual([...draft.searchParams.keys()],['text']);
+  assert.match(draft.searchParams.get('text'),/https:\/\/bhramari-enterprises\.vercel\.app\/yoga/);
+});

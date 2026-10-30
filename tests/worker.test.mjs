@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {createApp} from '../worker/app.mjs';
 const require=createRequire(import.meta.url);
@@ -10,18 +11,19 @@ const seed={settings:defaultSiteSettings,programmes:yogaProgrammes.map(content=>
 const env={SUPABASE_URL:'https://test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_unit_test',SUPABASE_SERVICE_ROLE_KEY:'unit-test-server-secret',RATE_LIMIT_SALT:'unit-test-only',EMAIL_DELIVERY_ENABLED:'true'};
 const profile={user_id:userId,full_name:'Test customer',email:'test@example.com',phone:'9000000000',whatsapp_opt_in:false};
 function setup(options={}){
+  const rateCounters=new Map();
   const calls=[];const state={settings:{...seed.settings},...options};const runtimeEnv={...env,...options.env};if(Object.hasOwn(options,'emailDeliveryFlag')){if(options.emailDeliveryFlag===undefined)delete runtimeEnv.EMAIL_DELIVERY_ENABLED;else runtimeEnv.EMAIL_DELIVERY_ENABLED=options.emailDeliveryFlag;}
   const upstream=async(url,init={})=>{const hostname=new URL(url).hostname;const path=new URL(url).pathname;const query=new URL(url).searchParams;const body=init.body?JSON.parse(init.body):null;calls.push({hostname,path,query,init,body});const ok=(data,headers={})=>new Response(init.method==='HEAD'?null:JSON.stringify(data),{headers:{'Content-Type':'application/json',...headers}});
-    if(hostname==='graph.facebook.com')return state.whatsappFailure?new Response('{"error":"private provider detail"}',{status:500}):ok({messages:[{id:'wamid.test-only'}]});
+    if(hostname==='graph.facebook.com'){if(state.whatsappTimeout)throw Object.assign(new Error('private timeout detail'),{name:'TimeoutError'});return state.whatsappFailure?new Response('{"error":"private provider detail"}',{status:500}):ok({messages:[{id:'wamid.test-only'}]});}
     if(state.upstreamFailure?.path===path)return new Response(state.upstreamFailure.body||'{}',{status:state.upstreamFailure.status,headers:{'Content-Type':'application/json'}});
-    if(path.endsWith('/rpc/consume_rate_limit'))return ok(state.rateAllowed!==false);
+    if(path.endsWith('/rpc/consume_rate_limit')){const attempts=(rateCounters.get(body.p_key)||0)+1;rateCounters.set(body.p_key,attempts);return ok(state.rateAllowed!==false&&!(state.denyNotificationBudget&&body.p_limit===1&&body.p_window_seconds===86400)&&(!state.enforceRateBudgets||attempts<=body.p_limit));}
     if(path.endsWith('/auth/v1/user')){if(init.method==='PUT')return ok({id:userId});if(init.headers.Authorization==='Bearer valid-user'||init.headers.Authorization==='Bearer valid-admin'||init.headers.Authorization==='Bearer rotated-token')return ok({id:userId,email:profile.email,email_confirmed_at:'2026-10-01',user_metadata:{role:'admin'}});return new Response('{}',{status:401})}
     if(path.endsWith('/auth/v1/token')){if(state.invalidLogin)return new Response('{}',{status:400});return ok({access_token:query.get('grant_type')==='refresh_token'?'rotated-token':'valid-user',refresh_token:'new-refresh-token',expires_in:3600})}
     if(path.endsWith('/auth/v1/signup'))return ok({user:{id:userId}});
     if(path.endsWith('/auth/v1/logout')||path.endsWith('/auth/v1/recover')||path.endsWith('/auth/v1/otp'))return ok({});
     if(path.endsWith('/auth/v1/verify'))return ok({access_token:'valid-user',refresh_token:'new-refresh-token',expires_in:3600,user:state.verifiedUser||{id:userId,email_confirmed_at:'2026-10-01'}});
     if(path.endsWith('/rpc/is_admin'))return ok(init.headers.Authorization==='Bearer valid-admin');
-    if(path.endsWith('/rpc/submit_enquiry')){assert.equal(body.p_payload.privacy,true,'server must forward the verified acknowledgement');if(state.saveFailure)return ok({});return ok({id:'44444444-4444-4444-8444-444444444444',...(body.p_user_id?{enrollmentId:'55555555-5555-4555-8555-555555555555'}:{})})}
+    if(path.endsWith('/rpc/submit_enquiry')){assert.equal(body.p_payload.privacy,true,'server must forward the verified acknowledgement');if(state.saveFailure)return ok({});return ok({id:state.malformedSavedId?'not-a-saved-uuid':'44444444-4444-4444-8444-444444444444',...(body.p_user_id?{enrollmentId:'55555555-5555-4555-8555-555555555555'}:{})})}
     if(path.endsWith('/site_settings')){if(init.method==='PATCH')state.settings=body.content;return ok([{id:'public',content:state.settings}],{'Content-Range':'0-0/1'})}
     if(path.endsWith('/profiles'))return ok([state.profile||profile],{'Content-Range':'0-0/1'});
     if(path.endsWith('/yoga_programmes'))return ok(state.hiddenProgramme?[]:seed.programmes,{'Content-Range':'0-3/4'});
@@ -196,7 +198,8 @@ test('verified signup requests the approved WhatsApp template only for the conse
   assert.equal(call.path,'/v99.0/123456789/messages');assert.equal(call.init.headers.Authorization,'Bearer server-only-whatsapp-fixture');
   assert.deepEqual(call.body,{messaging_product:'whatsapp',recipient_type:'individual',to:'919000000000',type:'template',template:{name:'bhramari_registration',language:{code:'en'}}});
   const read=s.calls.find(c=>c.path.endsWith('/profiles'));assert.equal(read.query.get('user_id'),'eq.'+userId);assert.equal(read.init.headers.Authorization,'Bearer valid-user');
-  const budget=s.calls.find(c=>c.path.endsWith('/consume_rate_limit'));assert.equal(budget.body.p_limit,1);assert.equal(budget.body.p_window_seconds,86400);
+  const budgets=s.calls.filter(c=>c.path.endsWith('/consume_rate_limit'));assert.equal(budgets.length,2);assert(budgets.every(c=>c.body.p_limit===1&&c.body.p_window_seconds===86400));
+  const recipientKey=createHash('sha256').update(env.RATE_LIMIT_SALT+':whatsapp-recipient:+919000000000').digest('hex');assert.equal(budgets[0].body.p_key,recipientKey);assert.notEqual(budgets[1].body.p_key,recipientKey);
 });
 
 test('unconfigured, opted-out, unverified, mismatched and invalid-phone profiles cannot receive automatic WhatsApp',async()=>{
@@ -214,10 +217,65 @@ test('a pending signup does not send a WhatsApp message and opted-in numbers nee
   response=await s.request('/api/auth/register',{method:'POST',body:{...body,phone:'9000000000'}});assert.equal(response.status,400);assert.match((await response.json()).error,/country code/);
 });
 
-test('WhatsApp provider failure or an exhausted per-account budget does not undo confirmation',async()=>{
-  for(const options of [{whatsappFailure:true},{rateAllowed:false}]){const s=setup({env:whatsappEnv,profile:consentingProfile,...options});const response=await s.request(confirmSignup);assert.equal(response.status,303);assert.equal(response.headers.getSetCookie().length,2);assert.equal(metaCalls(s).length,options.rateAllowed===false?0:1);assert.doesNotMatch(await response.text(),/private provider detail|server-only-whatsapp-fixture/);}
+test('WhatsApp provider failure, timeout or an exhausted notification budget does not undo confirmation',async()=>{
+  for(const options of [{whatsappFailure:true},{whatsappTimeout:true},{rateAllowed:false}]){const s=setup({env:whatsappEnv,profile:consentingProfile,...options});const response=await s.request(confirmSignup);assert.equal(response.status,303);assert.equal(response.headers.getSetCookie().length,2);assert.equal(metaCalls(s).length,options.rateAllowed===false?0:1);assert.doesNotMatch(await response.text(),/private provider detail|private timeout detail|server-only-whatsapp-fixture/);}
 });
 
 test('public configuration exposes WhatsApp readiness without credentials',async()=>{
   for(const options of [{},{env:whatsappEnv},{env:{...whatsappEnv,WHATSAPP_PHONE_NUMBER_ID:''}}]){const s=setup(options);const response=await s.request('/api/config');const body=await response.text();const data=JSON.parse(body).data;assert.equal(data.whatsappRegistrationEnabled,options.env===whatsappEnv);assert.doesNotMatch(body,/server-only-whatsapp-fixture|WHATSAPP_ACCESS_TOKEN|123456789/);}
+});
+
+const enquiryWhatsAppEnv={...whatsappEnv,WHATSAPP_ENQUIRY_ENABLED:'true',WHATSAPP_ENQUIRY_TEMPLATE:'bhramari_enquiry_received'};
+const consentingEnquiry={...enquiry,phone:'+91 90000 00000',whatsapp_opt_in:true};
+
+test('a saved opted-in enquiry requests its approved template after the save, with no credentials or delivery claims returned',async()=>{
+  const s=setup({env:enquiryWhatsAppEnv});const response=await s.request('/api/enquiries',{method:'POST',body:consentingEnquiry});
+  assert.equal(response.status,201);const raw=await response.text();const saved=JSON.parse(raw).data;assert.equal(saved.id,'44444444-4444-4444-8444-444444444444');
+  assert.doesNotMatch(raw,/server-only-whatsapp-fixture|wamid|delivered|private provider|access_token/i);
+  assert.equal(metaCalls(s).length,1);const call=metaCalls(s)[0];assert.equal(call.path,'/v99.0/123456789/messages');assert.equal(call.init.headers.Authorization,'Bearer server-only-whatsapp-fixture');
+  assert.deepEqual(call.body,{messaging_product:'whatsapp',recipient_type:'individual',to:'919000000000',type:'template',template:{name:'bhramari_enquiry_received',language:{code:'en'}}});
+  const savedIndex=s.calls.findIndex(c=>c.path.endsWith('/submit_enquiry'));assert(savedIndex>=0);assert(savedIndex<s.calls.indexOf(call),'the database must confirm persistence before any notification');
+  const notificationBudget=s.calls.find(c=>c.path.endsWith('/consume_rate_limit')&&c.body.p_limit===1);assert(notificationBudget);assert(s.calls.indexOf(notificationBudget)>savedIndex);assert.equal(notificationBudget.body.p_window_seconds,86400);
+});
+
+test('enquiry notifications stay separate from registration readiness and require complete enquiry configuration',async()=>{
+  const independent=setup({env:{...enquiryWhatsAppEnv,WHATSAPP_REGISTRATION_ENABLED:'false',WHATSAPP_WELCOME_TEMPLATE:''}});
+  assert.equal((await independent.request('/api/enquiries',{method:'POST',body:consentingEnquiry})).status,201);assert.equal(metaCalls(independent).length,1);
+  const cases=[{}, {env:whatsappEnv}, {env:{...enquiryWhatsAppEnv,WHATSAPP_ENQUIRY_ENABLED:'false'}}, {env:{...enquiryWhatsAppEnv,WHATSAPP_ENQUIRY_TEMPLATE:''}}, {env:{...enquiryWhatsAppEnv,WHATSAPP_ACCESS_TOKEN:''}}, {env:{...enquiryWhatsAppEnv,WHATSAPP_PHONE_NUMBER_ID:''}}, {env:{...enquiryWhatsAppEnv,WHATSAPP_API_VERSION:''}}, {env:{...enquiryWhatsAppEnv,WHATSAPP_TEMPLATE_LANGUAGE:''}}];
+  for(const options of cases){const s=setup(options);assert.equal((await s.request('/api/enquiries',{method:'POST',body:consentingEnquiry})).status,201);assert.equal(metaCalls(s).length,0);}
+  const missing=setup({env:enquiryWhatsAppEnv});assert.equal((await missing.request('/api/enquiries',{method:'POST',configured:false,body:consentingEnquiry})).status,503);assert.equal(missing.calls.length,0);
+});
+
+test('enquiry spam, invalid consent and failed or malformed persistence never trigger a WhatsApp request',async()=>{
+  for(const [options,changes,status] of [[{}, {website:'spam'},400],[{}, {privacy:false},400],[{rateAllowed:false},{},429],[{saveFailure:true},{},502],[{malformedSavedId:true},{},502]]){
+    const s=setup({env:enquiryWhatsAppEnv,...options});const response=await s.request('/api/enquiries',{method:'POST',body:{...consentingEnquiry,...changes}});assert.equal(response.status,status);assert.equal(metaCalls(s).length,0);
+  }
+});
+
+test('WhatsApp enquiry consent requires a supplied international phone while non-opted-in general enquiries retain optional phone',async()=>{
+  for(const phone of ['', '9000000000', '+0001234567', '+91/9000000000']){const s=setup({env:enquiryWhatsAppEnv});const response=await s.request('/api/enquiries',{method:'POST',body:{...consentingEnquiry,phone}});assert.equal(response.status,400);assert(!s.calls.some(c=>c.path.endsWith('/submit_enquiry')));assert.equal(metaCalls(s).length,0);}
+  for(const phone of ['', '9000000000']){const s=setup({env:enquiryWhatsAppEnv});const response=await s.request('/api/enquiries',{method:'POST',body:{...enquiry,programme_id:null,enquiry_type:'General',phone,whatsapp_opt_in:false}});assert.equal(response.status,201);assert.equal(metaCalls(s).length,0);}
+});
+
+test('WhatsApp delivery errors and an exhausted recipient budget preserve the saved enquiry response',async()=>{
+  for(const options of [{whatsappFailure:true},{whatsappTimeout:true},{denyNotificationBudget:true}]){const s=setup({env:enquiryWhatsAppEnv,...options});const response=await s.request('/api/enquiries',{method:'POST',body:consentingEnquiry});assert.equal(response.status,201);const raw=await response.text();assert.equal(JSON.parse(raw).data.id,'44444444-4444-4444-8444-444444444444');assert.doesNotMatch(raw,/private provider detail|private timeout detail|server-only-whatsapp-fixture|wamid/);assert.equal(metaCalls(s).length,options.denyNotificationBudget?0:1);}
+});
+
+test('a shared normalized recipient budget prevents duplicate messages across signup and different-email enquiries',async()=>{
+  const recipientKey=createHash('sha256').update(env.RATE_LIMIT_SALT+':whatsapp-recipient:+919000000000').digest('hex');
+  for(const first of ['signup','enquiry']){
+    const s=setup({env:enquiryWhatsAppEnv,profile:consentingProfile,enforceRateBudgets:true});
+    const sendEnquiry=email=>s.request('/api/enquiries',{method:'POST',body:{...consentingEnquiry,email,phone:'+919000000000'}});
+    if(first==='signup'){assert.equal((await s.request(confirmSignup)).status,303);assert.equal((await sendEnquiry('another@example.com')).status,201);}else{assert.equal((await sendEnquiry('another@example.com')).status,201);assert.equal((await s.request(confirmSignup)).status,303);}
+    assert.equal((await sendEnquiry('third@example.com')).status,201);assert.equal(metaCalls(s).length,1,'changing the email or event must not bypass the recipient budget');
+    const recipientCalls=s.calls.filter(c=>c.path.endsWith('/consume_rate_limit')&&c.body.p_key===recipientKey);assert.equal(recipientCalls.length,3);assert(recipientCalls.every(c=>c.body.p_limit===1&&c.body.p_window_seconds===86400));
+  }
+});
+
+test('public config exposes enquiry readiness independently without any Meta credentials',async()=>{
+  for(const [values,ready] of [[{},false],[whatsappEnv,false],[enquiryWhatsAppEnv,true],[{...enquiryWhatsAppEnv,WHATSAPP_ENQUIRY_TEMPLATE:''},false],[{...enquiryWhatsAppEnv,WHATSAPP_REGISTRATION_ENABLED:'false',WHATSAPP_WELCOME_TEMPLATE:''},true]]){const s=setup({env:values});const response=await s.request('/api/config');const raw=await response.text();assert.equal(JSON.parse(raw).data.whatsappEnquiryEnabled,ready);assert.doesNotMatch(raw,/server-only-whatsapp-fixture|WHATSAPP_ACCESS_TOKEN|123456789|bhramari_enquiry_received/);}
+});
+
+test('profile opt-in cannot store a country-ambiguous phone number for WhatsApp follow-up',async()=>{
+  const s=setup();const response=await s.request('/api/account/profile',{method:'PATCH',cookie:userCookie,body:{full_name:'Updated customer',phone:'9000000000',whatsapp_opt_in:true}});assert.equal(response.status,400);assert(!s.calls.some(c=>c.path.endsWith('/profiles')&&c.init.method==='PATCH'));
 });

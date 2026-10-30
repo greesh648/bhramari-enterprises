@@ -21,6 +21,7 @@ export function EnquiryForm({yoga=false}:{yoga?:boolean}){
   if(name.length<2||message.length<10){feedback('Please enter your name and a message of at least 10 characters.');return}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){feedback('Please enter a valid email address.');return}
   if(phone&&(!/^[+()\d\s-]{7,25}$/.test(phone)||phone.replace(/\D/g,'').length<7||phone.replace(/\D/g,'').length>15)){feedback('Please enter a valid phone number containing 7 to 15 digits.');return}
+  if(values.whatsapp_opt_in==='on'&&!/^\+[1-9]\d{6,14}$/.test(phone.replace(/[\s()-]/g,''))){feedback('For WhatsApp updates, include + and your country code in the mobile number.');return}
   const programme=yoga?programmes.find(p=>p.content.title===type):undefined;setAfter({name,programme:programme?.content.title||'',type});
   if(!config.configured){feedback('Requires backend configuration. Your details have been checked, but your enquiry has not been saved or sent.');return}
   if(config.turnstileSiteKey&&!turnstileToken){feedback('Please complete the spam-protection check before submitting.');return}
@@ -33,17 +34,17 @@ export function EnquiryForm({yoga=false}:{yoga?:boolean}){
   <p className='form-notice'>{loading?'Checking the enquiry service…':config.configured?'Your enquiry will be stored securely so Bhramari can respond.':'Requires backend configuration. You can check your details, but enquiries cannot be saved or sent yet.'}</p>
   {yoga&&currentUser&&<p className='small'>Your programme enquiry will be associated with your Bhramari account once it is recorded.</p>}
   <label>Your name <span>Required</span><input name='name' autoComplete='name' required minLength={2} maxLength={100} defaultValue={currentUser?.profile?.full_name||''}/></label>
-  <div className='form-row'><label>Email <span>Required</span><input name='email' type='email' autoComplete='email' required maxLength={254} defaultValue={currentUser?.email||''}/></label><label>Phone <span>{yoga?'Required':'Optional'}</span><input name='phone' type='tel' autoComplete='tel' required={yoga} minLength={7} maxLength={25} defaultValue={currentUser?.profile?.phone||''}/></label></div>
+  <div className='form-row'><label>Email <span>Required</span><input name='email' type='email' autoComplete='email' required maxLength={254} defaultValue={currentUser?.email||''}/></label><label>Phone <span>{yoga?'Required':'Optional'}</span><input name='phone' type='tel' autoComplete='tel' required={yoga} minLength={7} maxLength={25} defaultValue={currentUser?.profile?.phone||''}/><small>For WhatsApp, include + and your country code.</small></label></div>
   <label>{yoga?'Select programme':'Enquiry type'}<select name={yoga?'programme':'type'} value={type} onChange={e=>setType(e.target.value)}>{options.map(x=><option key={x}>{x}</option>)}</select></label>
   {yoga&&<label>Preferred contact method<select name='contactMethod' defaultValue='Email'><option>Email</option><option>Phone</option><option>No preference</option></select></label>}
   <label>Your message <span>Required</span><textarea name='message' required minLength={10} maxLength={4500} rows={5}/></label>
   <div className='honey' aria-hidden='true'><label>Leave empty<input name='website' tabIndex={-1} autoComplete='off'/></label></div>
   <label className='check'><input type='checkbox' required name='privacy'/><span>I have read the <a href='/privacy/'>privacy notice</a> and agree that my details may be used to respond to this enquiry.</span></label>
-  <label className='check'><input type='checkbox' name='whatsapp_opt_in'/><span>Receive programme-related updates on WhatsApp. Optional; this does not subscribe me to promotional marketing.</span></label>
+  <label className='check'><input type='checkbox' name='whatsapp_opt_in'/><span>I would like an enquiry acknowledgement and programme-related WhatsApp messages from Bhramari Enterprises at the number I provide. Optional; separate from promotional marketing. I can reply STOP to opt out.</span></label>
   {config.turnstileSiteKey&&<TurnstileChallenge siteKey={config.turnstileSiteKey} onToken={setTurnstileToken}/>}
   <button className='button' disabled={busy||loading} type='submit'>{busy?'Recording enquiry…':config.configured?'Submit enquiry':'Check enquiry details'}<span aria-hidden='true'>↗</span></button>
   <p ref={status} tabIndex={-1} role='status' aria-live='polite' className='form-status'>{state}</p>
-  {wa&&<div className='whatsapp-followup'><h3>Continue your conversation on WhatsApp.</h3><p>Your context is ready to review. Opening WhatsApp does not send the message; you choose whether to send it.</p><a href={wa} className='button outline-button' target='_blank' rel='noopener noreferrer'>Continue on WhatsApp<span aria-hidden='true'>↗</span></a></div>}
+  {wa&&<div className='whatsapp-followup'><h3>Continue your conversation on WhatsApp.</h3><p>Your message is ready to review. Open WhatsApp, then tap Send to start your conversation with Bhramari. Opening the chat alone does not send anything.</p><a href={wa} className='button outline-button' target='_blank' rel='noopener noreferrer'>Continue on WhatsApp<span aria-hidden='true'>↗</span></a></div>}
   <noscript><p>This form needs JavaScript. Use a configured direct contact option to continue.</p></noscript>
  </form>;
 }

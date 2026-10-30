@@ -9,7 +9,7 @@ import {featuredReels} from '@/lib/social-content';
 import type {CurrentUser,PlatformConfig,PublicContent,SiteSettings} from '@/lib/platform-types';
 
 const fallback:PublicContent={settings:defaultSiteSettings,programmes:yogaProgrammes.map(p=>({id:p.slug,content:p,display:true,availability:'Enquiries open'})),batches:[],reels:featuredReels,contentBlocks:[],backendConfigured:false};
-const unconfigured:PlatformConfig={configured:false,emailAuthEnabled:false,emailDeliveryEnabled:false,phoneOtpEnabled:false,whatsappRegistrationEnabled:false,turnstileSiteKey:''};
+const unconfigured:PlatformConfig={configured:false,emailAuthEnabled:false,emailDeliveryEnabled:false,phoneOtpEnabled:false,whatsappRegistrationEnabled:false,whatsappEnquiryEnabled:false,turnstileSiteKey:''};
 type PublicState={data:PublicContent;config:PlatformConfig;currentUser:CurrentUser|null;loading:boolean;loaded:boolean;error:string;refresh:()=>Promise<void>};
 const PublicContext=createContext<PublicState>({data:fallback,config:unconfigured,currentUser:null,loading:false,loaded:false,error:'',refresh:async()=>{}});
 
