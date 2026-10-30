@@ -10,7 +10,15 @@ export const yogaSettings = {
   startDate: 'Next start date to be confirmed',
   meetingDays: 'Meeting days to be confirmed with your batch',
   priceNote: 'Price to be confirmed',
-  instructor: { name: '', biography: '', credentials: '', image: { src: '', alt: 'Bhramari yoga instructor' } },
+  instructor: {
+    name: 'Greeshma MS',
+    role: 'Yoga instructor · Bhramari Enterprises',
+    biography: 'Greeshma MS is the instructor at Bhramari Yoga & Wellness. She has been practising Patanjali yoga since 2014, with a personal practice that brings together yogasanas, mindful movement and consistency.',
+    practiceNote: 'Personal practice since 2014',
+    credentials: '',
+    image: { src: '/images/greeshma-ms.webp', alt: 'Greeshma MS seated on a yoga mat outdoors at sunset' },
+    instagramUrl: 'https://www.instagram.com/bhramariyoga_wellness/',
+  },
   onlineSetup: 'A stable internet connection, Zoom installed on your device, and a quiet practice space. Joining information is shared privately after confirmation.',
 };
 
@@ -75,7 +83,7 @@ export const yogaProgrammes: YogaProgramme[] = [
   },
   {
     slug: '1-month-batch', title: '1-Month Yoga Batch', shortTitle: 'An evening rhythm, your own.',
-    duration: '1 Month', timing: '6:30 PM – 7:30 PM', price: '₹3,499', illustration: 'warrior',
+    duration: '1 Month', timing: '6:30 PM – 7:30 PM', price: '₹3,999', illustration: 'warrior',
     image: { src: '', alt: 'Woman in a grounded warrior-inspired yoga posture' },
     shortDescription: 'An evening programme for regular movement, balance and a mindful practice.',
     description: 'Create a regular space for movement at the close of your day. This month-long batch balances familiar foundations with gradual exploration, using guided sequences, considered pacing and time for relaxation.',

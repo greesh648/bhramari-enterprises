@@ -4,9 +4,9 @@ The existing Next.js/TypeScript website, supplied logo, white design and six bus
 
 ## Current readiness
 
-The website and server architecture are implemented. A dedicated Supabase project and its 13 protected application tables have been provisioned. Official contact, Instagram and WhatsApp links are configured. The live Vercel connection requires its server-only environment values. Candidate signup/recovery remain disabled until real SMTP delivery and secure confirmation/recovery email templates have been verified and `EMAIL_DELIVERY_ENABLED=true` is set. No users, OTPs, enquiries, confirmations, payments or automatic WhatsApp messages are fabricated. See [live connection setup](docs/LIVE-CONNECTION.md).
+The website and server architecture are implemented. A dedicated Supabase project and its 13 protected application tables have been provisioned. Official contact, Instagram and WhatsApp links are configured. The Vercel production site is connected to Supabase. Email signup delivery and confirmation were verified, and the designated business owner has administrator access. Future installations must configure server-only credentials, SMTP and secure confirmation/recovery templates before setting `EMAIL_DELIVERY_ENABLED=true`. Recovery mail delivery should be tested separately before relying on it. No users, OTPs, enquiries, confirmations, payments or automatic WhatsApp messages are fabricated. See [live connection setup](docs/LIVE-CONNECTION.md).
 
-The existing Sites review audience remains private. Bhramari customer authentication is separate from the outer ChatGPT review-site sign-in. Do not advertise customer access until the final host/audience and backend have been configured and tested. The proposed bhramarienterprises.com domain has not been purchased or connected.
+The existing Sites review audience remains private. Bhramari customer authentication is separate from the outer ChatGPT review-site sign-in. The separate production site is https://bhramari-enterprises.vercel.app; the Yoga bio link is https://bhramari-enterprises.vercel.app/yoga. The proposed bhramarienterprises.com domain has not been purchased or connected.
 
 ## Run locally
 
@@ -105,7 +105,7 @@ Contact Details in /admin/ controls one public phone, WhatsApp number, email and
 
 Social / Reels allows manually selected official Instagram URLs and optional thumbnails; the page shows up to six published cards. No scraping or automatic Instagram API sync is included. No Instagram tracking/embed scripts load automatically; configured thumbnails may load from their source.
 
-Meta/WhatsApp AI and automated business messaging require separate eligible official services and provider configuration. This website does not activate automation or silently send messages. Optional programme-update consent is unchecked and separate from marketing.
+Meta/WhatsApp AI and automated business messaging require separate eligible official services and provider configuration. The optional official Cloud API registration-welcome integration is disabled by default. See docs/WHATSAPP.md for the remaining sender/template setup, manual owner drafts and delivery limitations. Optional programme-update consent is unchecked and separate from marketing.
 
 Zoom URLs, passcodes and official batch WhatsApp group invitations belong only in a batch's private joining editor. Public settings, descriptions and notices must never contain them. No Zoom API credentials or automated meeting creation are implemented.
 

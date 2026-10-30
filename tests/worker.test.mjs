@@ -10,19 +10,20 @@ const seed={settings:defaultSiteSettings,programmes:yogaProgrammes.map(content=>
 const env={SUPABASE_URL:'https://test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_unit_test',SUPABASE_SERVICE_ROLE_KEY:'unit-test-server-secret',RATE_LIMIT_SALT:'unit-test-only',EMAIL_DELIVERY_ENABLED:'true'};
 const profile={user_id:userId,full_name:'Test customer',email:'test@example.com',phone:'9000000000',whatsapp_opt_in:false};
 function setup(options={}){
-  const calls=[];const state={settings:{...seed.settings},...options};const runtimeEnv={...env};if(Object.hasOwn(options,'emailDeliveryFlag')){if(options.emailDeliveryFlag===undefined)delete runtimeEnv.EMAIL_DELIVERY_ENABLED;else runtimeEnv.EMAIL_DELIVERY_ENABLED=options.emailDeliveryFlag;}
-  const upstream=async(url,init={})=>{const path=new URL(url).pathname;const query=new URL(url).searchParams;const body=init.body?JSON.parse(init.body):null;calls.push({path,query,init,body});const ok=(data,headers={})=>new Response(init.method==='HEAD'?null:JSON.stringify(data),{headers:{'Content-Type':'application/json',...headers}});
+  const calls=[];const state={settings:{...seed.settings},...options};const runtimeEnv={...env,...options.env};if(Object.hasOwn(options,'emailDeliveryFlag')){if(options.emailDeliveryFlag===undefined)delete runtimeEnv.EMAIL_DELIVERY_ENABLED;else runtimeEnv.EMAIL_DELIVERY_ENABLED=options.emailDeliveryFlag;}
+  const upstream=async(url,init={})=>{const hostname=new URL(url).hostname;const path=new URL(url).pathname;const query=new URL(url).searchParams;const body=init.body?JSON.parse(init.body):null;calls.push({hostname,path,query,init,body});const ok=(data,headers={})=>new Response(init.method==='HEAD'?null:JSON.stringify(data),{headers:{'Content-Type':'application/json',...headers}});
+    if(hostname==='graph.facebook.com')return state.whatsappFailure?new Response('{"error":"private provider detail"}',{status:500}):ok({messages:[{id:'wamid.test-only'}]});
     if(state.upstreamFailure?.path===path)return new Response(state.upstreamFailure.body||'{}',{status:state.upstreamFailure.status,headers:{'Content-Type':'application/json'}});
     if(path.endsWith('/rpc/consume_rate_limit'))return ok(state.rateAllowed!==false);
     if(path.endsWith('/auth/v1/user')){if(init.method==='PUT')return ok({id:userId});if(init.headers.Authorization==='Bearer valid-user'||init.headers.Authorization==='Bearer valid-admin'||init.headers.Authorization==='Bearer rotated-token')return ok({id:userId,email:profile.email,email_confirmed_at:'2026-10-01',user_metadata:{role:'admin'}});return new Response('{}',{status:401})}
     if(path.endsWith('/auth/v1/token')){if(state.invalidLogin)return new Response('{}',{status:400});return ok({access_token:query.get('grant_type')==='refresh_token'?'rotated-token':'valid-user',refresh_token:'new-refresh-token',expires_in:3600})}
     if(path.endsWith('/auth/v1/signup'))return ok({user:{id:userId}});
     if(path.endsWith('/auth/v1/logout')||path.endsWith('/auth/v1/recover')||path.endsWith('/auth/v1/otp'))return ok({});
-    if(path.endsWith('/auth/v1/verify'))return ok({access_token:'valid-user',refresh_token:'new-refresh-token',expires_in:3600});
+    if(path.endsWith('/auth/v1/verify'))return ok({access_token:'valid-user',refresh_token:'new-refresh-token',expires_in:3600,user:state.verifiedUser||{id:userId,email_confirmed_at:'2026-10-01'}});
     if(path.endsWith('/rpc/is_admin'))return ok(init.headers.Authorization==='Bearer valid-admin');
     if(path.endsWith('/rpc/submit_enquiry')){assert.equal(body.p_payload.privacy,true,'server must forward the verified acknowledgement');if(state.saveFailure)return ok({});return ok({id:'44444444-4444-4444-8444-444444444444',...(body.p_user_id?{enrollmentId:'55555555-5555-4555-8555-555555555555'}:{})})}
     if(path.endsWith('/site_settings')){if(init.method==='PATCH')state.settings=body.content;return ok([{id:'public',content:state.settings}],{'Content-Range':'0-0/1'})}
-    if(path.endsWith('/profiles'))return ok([profile],{'Content-Range':'0-0/1'});
+    if(path.endsWith('/profiles'))return ok([state.profile||profile],{'Content-Range':'0-0/1'});
     if(path.endsWith('/yoga_programmes'))return ok(state.hiddenProgramme?[]:seed.programmes,{'Content-Range':'0-3/4'});
     if(path.endsWith('/yoga_enrollments'))return ok(state.enrollments||[],{'Content-Range':'*/0'});
     if(path.endsWith('/yoga_batches'))return ok(state.batches||[],{'Content-Range':'*/0'});
@@ -37,6 +38,46 @@ function setup(options={}){
 }
 const userCookie='bhramari_access=valid-user',adminCookie='bhramari_access=valid-admin';
 const enquiry={name:'Test customer',email:'test@example.com',phone:'9000000000',enquiry_type:'Yoga & Wellness',programme_id:'7-day-course',message:'I would like to discuss this programme.',source_page:'/businesses/yoga-wellness/',privacy:true,whatsapp_opt_in:false,website:''};
+
+test('yoga short URLs permanently redirect GET and HEAD to the same-origin canonical page without a backend or asset lookup',async()=>{
+  const app=createApp({seed,serveAsset:async()=>assert.fail('a short URL must not render a duplicate page'),fetchImpl:async()=>assert.fail('a short URL must not call Supabase')});
+  const query='?utm_source=instagram&utm_campaign=yoga%20wellness&returnTo=https%3A%2F%2Fattacker.invalid%2F&tag=a&tag=b';
+  for(const origin of ['https://bhramari.vercel.app','https://wellness.example:8443','http://localhost:4173']){
+    for(const path of ['/yoga','/yoga/'])for(const method of ['GET','HEAD'])for(const runtimeEnv of [{},env]){
+      const response=await app.fetch(new Request(origin+path+query,{method,headers:{Cookie:'bhramari_access=forged;bhramari_refresh=expired'}}),runtimeEnv);
+      assert.equal(response.status,308);assert.equal(response.headers.get('Location'),origin+'/businesses/yoga-wellness/'+query);
+      assert.equal(await response.text(),'');assert.equal(response.headers.getSetCookie().length,0);
+      assert.equal(response.headers.get('X-Content-Type-Options'),'nosniff');
+    }
+  }
+});
+
+test('yoga short URLs keep unsupported methods and mutation origin protection unchanged',async()=>{
+  const s=setup();
+  for(const path of ['/yoga','/yoga/']){
+    for(const method of ['POST','PATCH','PUT','DELETE','OPTIONS']){
+      const response=await s.request(path,{method});
+      assert.equal(response.status,405);assert.equal(response.headers.get('Location'),null);assert.equal(response.headers.getSetCookie().length,0);
+    }
+    for(const options of [{origin:'https://attacker.invalid'},{headers:{'Sec-Fetch-Site':'cross-site'}}]){
+      const response=await s.request(path,{method:'POST',...options});
+      assert.equal(response.status,403);assert.equal((await response.json()).code,'ORIGIN_REJECTED');assert.equal(response.headers.get('Location'),null);
+    }
+  }
+  assert.equal(s.calls.length,0);
+});
+
+test('yoga short URL matching does not broaden to other paths or bypass private-page authorization',async()=>{
+  const s=setup();
+  for(const path of ['/yoga/index.html','/yoga/7-day-course/','/yogatherapy/']){
+    const response=await s.request(path,{configured:false});assert.equal(response.status,200);assert.equal(response.headers.get('Location'),null);
+  }
+  for(const path of ['/account/','/admin/']){
+    let response=await s.request(path,{configured:false});assert.equal(response.status,503);assert.equal(response.headers.get('Location'),null);
+    response=await s.request(path);assert.equal(response.status,303);assert.equal(new URL(response.headers.get('Location')).pathname,'/login/');assert.equal(response.headers.get('Cache-Control'),'no-store');
+  }
+  assert.equal(s.calls.length,0);
+});
 
 test('unconfigured public site has truthful fallbacks and no fake save/auth',async()=>{const s=setup();let r=await s.request('/api/config',{configured:false});assert.equal((await r.json()).data.configured,false);r=await s.request('/api/public',{configured:false});assert.equal((await r.json()).data.programmes.length,4);r=await s.request('/api/enquiries',{method:'POST',body:enquiry,configured:false});assert.equal(r.status,503);assert.match((await r.json()).error,/Requires backend configuration/);assert.equal(s.calls.length,0)});
 test('optional public identity never treats missing configuration as an error',async()=>{const s=setup();const r=await s.request('/api/me?optional=1',{configured:false});assert.equal(r.status,200);assert.equal((await r.json()).data,null)});
@@ -140,4 +181,43 @@ test('explicitly configured email delivery permits a real provider recovery requ
 test('delivery gate preserves validation of an existing provider confirmation link',async()=>{
   const s=setup({emailDeliveryFlag:'false'});const response=await s.request('/api/auth/confirm?token_hash=existing-valid-token-hash&type=email');
   assert.equal(response.status,303);assert.equal(response.headers.getSetCookie().length,2);assert(s.calls.some(call=>call.path.endsWith('/auth/v1/verify')));
+});
+
+const whatsappEnv={WHATSAPP_REGISTRATION_ENABLED:'true',WHATSAPP_ACCESS_TOKEN:'server-only-whatsapp-fixture',WHATSAPP_PHONE_NUMBER_ID:'123456789',WHATSAPP_API_VERSION:'v99.0',WHATSAPP_WELCOME_TEMPLATE:'bhramari_registration',WHATSAPP_TEMPLATE_LANGUAGE:'en'};
+const consentingProfile={...profile,phone:'+91 90000 00000',whatsapp_opt_in:true};
+const confirmSignup='/api/auth/confirm?token_hash=valid-signup-token-hash&type=signup';
+const metaCalls=s=>s.calls.filter(c=>c.hostname==='graph.facebook.com');
+
+test('verified signup requests the approved WhatsApp template only for the consenting profile',async()=>{
+  const s=setup({env:whatsappEnv,profile:consentingProfile});const response=await s.request(confirmSignup);
+  assert.equal(response.status,303);assert.equal(new URL(response.headers.get('Location')).pathname,'/account/');
+  assert(response.headers.getSetCookie().every(c=>c.includes('HttpOnly')));
+  assert.equal(metaCalls(s).length,1);const call=metaCalls(s)[0];
+  assert.equal(call.path,'/v99.0/123456789/messages');assert.equal(call.init.headers.Authorization,'Bearer server-only-whatsapp-fixture');
+  assert.deepEqual(call.body,{messaging_product:'whatsapp',recipient_type:'individual',to:'919000000000',type:'template',template:{name:'bhramari_registration',language:{code:'en'}}});
+  const read=s.calls.find(c=>c.path.endsWith('/profiles'));assert.equal(read.query.get('user_id'),'eq.'+userId);assert.equal(read.init.headers.Authorization,'Bearer valid-user');
+  const budget=s.calls.find(c=>c.path.endsWith('/consume_rate_limit'));assert.equal(budget.body.p_limit,1);assert.equal(budget.body.p_window_seconds,86400);
+});
+
+test('unconfigured, opted-out, unverified, mismatched and invalid-phone profiles cannot receive automatic WhatsApp',async()=>{
+  const cases=[{}, {env:{...whatsappEnv,WHATSAPP_ACCESS_TOKEN:''},profile:consentingProfile}, {env:whatsappEnv}, {env:whatsappEnv,profile:{...consentingProfile,phone:'9000000000'}}, {env:whatsappEnv,profile:{...consentingProfile,user_id:otherId}}, {env:whatsappEnv,profile:consentingProfile,verifiedUser:{id:userId}}];
+  for(const options of cases){const s=setup(options);assert.equal((await s.request(confirmSignup)).status,303);assert.equal(metaCalls(s).length,0);}
+});
+
+test('recovery and ordinary email verification never send a registration welcome',async()=>{
+  for(const type of ['recovery','email']){const s=setup({env:whatsappEnv,profile:consentingProfile});assert.equal((await s.request('/api/auth/confirm?token_hash=valid-verification-token&type='+type)).status,303);assert.equal(metaCalls(s).length,0);}
+});
+
+test('a pending signup does not send a WhatsApp message and opted-in numbers need a country code',async()=>{
+  const s=setup({env:whatsappEnv,profile:consentingProfile});const body={full_name:'Test customer',email:'test@example.com',phone:'+919000000000',password:'test-only-long-password',privacy:true,whatsapp_opt_in:true};
+  let response=await s.request('/api/auth/register',{method:'POST',body});assert.equal(response.status,200);assert.equal((await response.json()).data.verificationRequired,true);assert.equal(metaCalls(s).length,0);
+  response=await s.request('/api/auth/register',{method:'POST',body:{...body,phone:'9000000000'}});assert.equal(response.status,400);assert.match((await response.json()).error,/country code/);
+});
+
+test('WhatsApp provider failure or an exhausted per-account budget does not undo confirmation',async()=>{
+  for(const options of [{whatsappFailure:true},{rateAllowed:false}]){const s=setup({env:whatsappEnv,profile:consentingProfile,...options});const response=await s.request(confirmSignup);assert.equal(response.status,303);assert.equal(response.headers.getSetCookie().length,2);assert.equal(metaCalls(s).length,options.rateAllowed===false?0:1);assert.doesNotMatch(await response.text(),/private provider detail|server-only-whatsapp-fixture/);}
+});
+
+test('public configuration exposes WhatsApp readiness without credentials',async()=>{
+  for(const options of [{},{env:whatsappEnv},{env:{...whatsappEnv,WHATSAPP_PHONE_NUMBER_ID:''}}]){const s=setup(options);const response=await s.request('/api/config');const body=await response.text();const data=JSON.parse(body).data;assert.equal(data.whatsappRegistrationEnabled,options.env===whatsappEnv);assert.doesNotMatch(body,/server-only-whatsapp-fixture|WHATSAPP_ACCESS_TOKEN|123456789/);}
 });

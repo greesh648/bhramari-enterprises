@@ -51,6 +51,16 @@ Use only the private batch editor for Zoom URLs, IDs, passcodes and group invita
 
 Do not paste API keys, SMTP passwords or Supabase service keys into content fields. Server configuration belongs in your hosting/Supabase settings. Do not publish the site or collect real data until the privacy notice and business details are reviewed.
 
+## Current instructor, practice videos and bio link
+
+The instructor profile is in `lib/yoga-programmes.ts` → `yogaSettings.instructor`. Greeshma MS's supplied portrait is `public/images/greeshma-ms.webp`. The published wording states personal Patanjali yoga practice since 2014; no certification or institutional affiliation is claimed. Replace the image and its alt text together when updating it.
+
+Three selected public Instagram Reel links and locally hosted cover images are in `lib/social-content.ts`. Once Supabase is connected, **Social / Reels** in the owner dashboard controls published Reel records. Use the full HTTPS address of each hosted thumbnail in that editor. These are selected links, not an automatic feed. Add upcoming-class videos there as they become available.
+
+Use **https://bhramari-enterprises.vercel.app/yoga** in the Instagram bio. It redirects to the canonical Yoga & Wellness page without creating a duplicate SEO page. The one-month source catalogue price is ₹3,999; the connected owner catalogue remains authoritative for live prices.
+
+For manual registration welcomes and the remaining official API setup, see [WHATSAPP.md](WHATSAPP.md). Automatic messages remain disabled until that setup and actual delivery tests are completed.
+
 ## If an operation fails
 
 A successful save is shown only after the API accepts it. A failed request leaves an error with a retry option. Requires backend configuration means setup is incomplete; no save was made. If provider credentials, SMTP, SMS or domain settings change, retest those real services.

@@ -14,6 +14,6 @@ export type Enrollment={id:string;user_id:string;programme_id:string;batch_id:st
 export type Reel={id:string;title:string;url:string;thumbnail_url:string;display_order:number;published:boolean};
 export type ContentBlock={id:string;title:string;body:string;faqs:{question:string;answer:string}[]};
 export type PublicContent={settings:SiteSettings;programmes:ProgrammeRecord[];batches:YogaBatch[];reels:Reel[];contentBlocks:ContentBlock[];backendConfigured:boolean};
-export type PlatformConfig={configured:boolean;phoneOtpEnabled:boolean;turnstileSiteKey:string;emailAuthEnabled:boolean;emailDeliveryEnabled:boolean};
+export type PlatformConfig={configured:boolean;phoneOtpEnabled:boolean;turnstileSiteKey:string;emailAuthEnabled:boolean;emailDeliveryEnabled:boolean;whatsappRegistrationEnabled:boolean};
 export type CurrentUser={id:string;email:string;role:'customer'|'admin';profile:Profile|null};
 export type AccountData={profile:Profile|null;enquiries:Enquiry[];enrollments:Enrollment[];batches:YogaBatch[];joiningDetails:BatchAccess[];programmes?:ProgrammeRecord[]};
